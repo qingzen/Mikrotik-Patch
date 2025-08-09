@@ -1,6 +1,8 @@
 [![Patch Mikrotik RouterOS 6.x](https://github.com/elseif/MikroTikPatch/actions/workflows/mikrotik_patch_6.yml/badge.svg)](https://github.com/elseif/MikroTikPatch/actions/workflows/mikrotik_patch_6.yml)
 [![Patch Mikrotik RouterOS 7.x](https://github.com/elseif/MikroTikPatch/actions/workflows/mikrotik_patch_7.yml/badge.svg)](https://github.com/elseif/MikroTikPatch/actions/workflows/mikrotik_patch_7.yml)
 # MikroTik RouterOS Patch  [[English](README_EN.md)]
+[![License: WTFPL](https://img.shields.io/badge/License-WTFPL-brightgreen.svg)](./LICENSE)
+[![CoC:WTFCoC](https://img.shields.io/badge/CoC-WTFCoC-brightgreen.svg)](./CODE_OF_CONDUCT.md)
 
 ### [[Discord](https://discord.gg/keV6MWQFtX)] [[Telegram](https://t.me/mikrotikpatch)] [[Keygen(Telegram Bot)](https://t.me/ROS_Keygen_Bot)]
 
@@ -31,6 +33,7 @@
 ## 如何使用Shell
     安装 option-{version}.npk 包
     telnet到RouterOS,用户名devel,密码与admin的密码相同
+    要使用devel用户名登录必须安装option-{version}.npk包，且启用。
 ## 如何授权许可
     进入shell
     运行 keygen
