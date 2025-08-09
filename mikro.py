@@ -1,7 +1,7 @@
 import random
 import struct
 from sha256 import SHA256
-from toyecc import AffineCurvePoint, getcurvebyname, FieldElement, ECPrivateKey, ECPublicKey, Tools
+from toyecc import AffineCurvePoint, getcurvebyname, FieldElement,ECPrivateKey,ECPublicKey,Tools
 
 
 MIKRO_BASE64_CHARACTER_TABLE = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
@@ -159,73 +159,28 @@ def mikro_eddsa_verify(data:bytes,signature:bytes,public_key:bytes):
     signature = ECPrivateKey.EDDSASignature.decode(curve,signature)
     return public_key.eddsa_verify(data,signature)
 
-
-# ---- helper functions for modular inverse ----
-def _egcd(a: int, b: int):
-    """Extended GCD: returns (g, x, y) such that a*x + b*y = g = gcd(a,b)"""
-    if b == 0:
-        return (a, 1, 0)
-    else:
-        g, x1, y1 = _egcd(b, a % b)
-        x = y1
-        y = x1 - (a // b) * y1
-        return (g, x, y)
-
-def _modinv(a: int, m: int):
-    """Return modular inverse of a mod m, or None if inverse doesn't exist."""
-    g, x, _ = _egcd(a, m)
-    if g != 1:
-        return None
-    return x % m
-# ------------------------------------------------
-
-
 def mikro_kcdsa_sign(data:bytes,private_key:bytes)->bytes:
-    """
-    KCDSA signing for MikroTik used in this project (safer modinv handling).
-    - data: bytes to be hashed / used in algorithm (original flow preserved)
-    - private_key: raw private key bytes (little-endian expected by Tools.bytestoint_le)
-    """
     assert(isinstance(data, bytes))
     assert(isinstance(private_key, bytes))
     curve = getcurvebyname('Curve25519')
-    # construct ECPrivateKey with scalar (Tools.bytestoint_le gives integer little-endian)
-    priv_scalar_int = Tools.bytestoint_le(private_key) % curve.n
-    private_key_obj: ECPrivateKey = ECPrivateKey(priv_scalar_int, curve)
-    public_key: ECPublicKey = private_key_obj.pubkey
-
-    # compute modular inverse of private scalar once and validate
-    inv_scalar = _modinv(private_key_obj.scalar, curve.n)
-    if inv_scalar is None:
-        # scalar not invertible -> invalid key (gcd != 1). cannot proceed.
-        raise ValueError(
-            "private_key.scalar is not invertible modulo curve.n (gcd != 1). "
-            "This indicates the private key is invalid for KCDSA signing. "
-            "Regenerate the private key or check key formatting/length."
-        )
-
-    # loop to generate nonce and signature, return when verification condition matches (same as original)
+    private_key:ECPrivateKey = ECPrivateKey(Tools.bytestoint_le(private_key), curve)
+    public_key:ECPublicKey = private_key.pubkey
     while True:
         nonce_secret = random.SystemRandom().randint(1, curve.n - 1)
         nonce_point = nonce_secret * curve.G
         nonce = int(nonce_point.x) % curve.n
-
         nonce_hash = mikro_sha256(Tools.inttobytes_le(nonce,32))
         data_hash = bytearray(mikro_sha256(data))
         for i in range(16):
-            data_hash[8+i] ^= nonce_hash[i]
+            data_hash[8+i] ^= nonce_hash[i] 
         data_hash[0] &= 0xF8
         data_hash[31] &= 0x7F
         data_hash[31] |= 0x40
         data_hash = Tools.bytestoint_le(data_hash)
-
-        # signature = inv(private_scalar) * (nonce_secret - data_hash)  (mod n)
-        sig_int = (inv_scalar * ((nonce_secret - data_hash) % curve.n)) % curve.n
-
-        # verify same condition as original code
-        if int((public_key.point * sig_int + curve.G * data_hash).x) == nonce:
-            return bytes(nonce_hash[:16] + Tools.inttobytes_le(sig_int, 32))
-
+        signature = pow(private_key.scalar, -1, curve.n) * (nonce_secret - data_hash)
+        signature %= curve.n
+        if int((public_key.point * signature + curve.G * data_hash).x) == nonce:
+                return bytes(nonce_hash[:16]+Tools.inttobytes_le(signature,32))
 
 def mikro_kcdsa_verify(data:bytes, signature:bytes, public_key:bytes)->bool:
     assert(isinstance(data, bytes))
@@ -246,7 +201,7 @@ def mikro_kcdsa_verify(data:bytes, signature:bytes, public_key:bytes)->bool:
     data_hash[31] |= 0x40
     data_hash = Tools.bytestoint_le(data_hash)
     for public_key in public_keys:
-        nonce = int((public_key * signature + curve.G * data_hash).x)
+        nonce = int((public_key * signature + curve.G * data_hash).x) 
         if mikro_sha256(Tools.inttobytes_le(nonce,32))[:len(nonce_hash)] == nonce_hash:
             return True
     return False
