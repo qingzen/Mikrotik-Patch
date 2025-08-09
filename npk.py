@@ -1,104 +1,98 @@
-import os
+import io
+import struct
 import hashlib
-from math import gcd
-from collections import namedtuple
-from binascii import hexlify, unhexlify
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
+from enum import IntEnum
 
-# Simple elliptic curve parameters for KCDSA
-Curve = namedtuple("Curve", ["p", "a", "b", "g", "n"])
-Point = namedtuple("Point", ["x", "y"])
 
-# Contoh curve (gunakan curve Mikrotik asli jika ada)
-curve = Curve(
-    p=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
-    a=0,
-    b=7,
-    g=Point(
-        x=55066263022277343669578718895168534326250603453777594175500187360389116729240,
-        y=32670510020758816978083085130507043184471273380659243275938904335757337461424
-    ),
-    n=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-)
+class NpkPartID(IntEnum):
+    HEADER = 1
+    CONTENT = 2
+    SIGNATURE_KCDSA = 3
+    SIGNATURE_EDDSA = 4
 
-class PrivateKey:
-    def __init__(self, scalar):
-        self.scalar = scalar
 
-class PublicKey:
-    def __init__(self, point):
-        self.point = point
+class NpkFileContainer:
+    def __init__(self, part_id, data):
+        self.part_id = part_id
+        self.data = data
 
-def load_private_key(path):
-    """Load private key from PEM or binary file, ensure it's valid"""
-    if not os.path.exists(path):
-        print(f"[mikro] Key {path} not found, generating new key...")
-        return generate_valid_private_key(path)
+    def get_bytes(self):
+        length = len(self.data)
+        return struct.pack(">II", self.part_id, length) + self.data
 
-    try:
-        with open(path, "rb") as f:
+
+class NovaPackage:
+    def __init__(self):
+        self.parts = []
+
+    @classmethod
+    def from_file(cls, filename):
+        with open(filename, "rb") as f:
             data = f.read()
+        return cls.from_bytes(data)
 
-        # Try PEM format
-        try:
-            key = serialization.load_pem_private_key(data, password=None, backend=default_backend())
-            scalar = key.private_numbers().private_value
-        except ValueError:
-            # Assume binary
-            scalar = int.from_bytes(data, "big")
+    @classmethod
+    def from_bytes(cls, data):
+        pkg = cls()
+        stream = io.BytesIO(data)
 
-        if gcd(scalar, curve.n) != 1 or scalar <= 0 or scalar >= curve.n:
-            print("[mikro] Invalid KCDSA key detected, regenerating...")
-            return generate_valid_private_key(path)
+        while True:
+            header = stream.read(8)
+            if len(header) < 8:
+                break
+            part_id, length = struct.unpack(">II", header)
+            part_data = stream.read(length)
+            pkg.parts.append(NpkFileContainer(part_id, part_data))
 
-        return PrivateKey(scalar)
-    except Exception as e:
-        print(f"[mikro] Error loading key: {e}, regenerating...")
-        return generate_valid_private_key(path)
+        return pkg
 
-def generate_valid_private_key(path):
-    """Generate a valid private key (invertible modulo curve.n)"""
-    import secrets
-    while True:
-        scalar = secrets.randbelow(curve.n - 1) + 1
-        if gcd(scalar, curve.n) == 1:
-            break
-    priv = PrivateKey(scalar)
-    with open(path, "wb") as f:
-        f.write(scalar.to_bytes(32, "big"))
-    print(f"[mikro] New valid private key saved to {path}")
-    return priv
+    def get_part(self, part_id):
+        for part in self.parts:
+            if part.part_id == part_id:
+                return part
+        return None
 
-def mikro_kcdsa_sign(data_hash, private_key):
-    """Sign using KCDSA-like algorithm"""
-    if isinstance(data_hash, bytes):
-        data_hash = int.from_bytes(data_hash, "big")
-    if gcd(private_key.scalar, curve.n) != 1:
-        raise ValueError("Private key scalar is not invertible modulo curve.n")
+    def replace_part(self, part_id, data):
+        for i, part in enumerate(self.parts):
+            if part.part_id == part_id:
+                self.parts[i] = NpkFileContainer(part_id, data)
+                return
+        # Kalau part belum ada, tambahkan
+        self.parts.append(NpkFileContainer(part_id, data))
 
-    import secrets
-    while True:
-        nonce = secrets.randbelow(curve.n - 1) + 1
-        if gcd(nonce, curve.n) == 1:
-            break
+    def get_bytes(self):
+        return b"".join([part.get_bytes() for part in self.parts])
 
-    # r = (g^nonce).x mod n
-    r = pow(curve.g.x, nonce, curve.n)
-    s = (pow(private_key.scalar, -1, curve.n) * (nonce - data_hash)) % curve.n
+    def save(self, filename):
+        with open(filename, "wb") as f:
+            f.write(self.get_bytes())
 
-    return (r, s)
+    def sign(self, kcdsa_private_key, eddsa_private_key):
+        """
+        Membuat signature KCDSA dan EDDSA.
+        Signature dihitung dari hash SHA-256 pada semua part kecuali signature.
+        """
+        sha256 = hashlib.sha256()
 
-def mikro_kcdsa_verify(data_hash, signature, public_key):
-    """Verify a KCDSA signature"""
-    r, s = signature
-    if isinstance(data_hash, bytes):
-        data_hash = int.from_bytes(data_hash, "big")
+        for part in self.parts:
+            if part.part_id not in (NpkPartID.SIGNATURE_KCDSA, NpkPartID.SIGNATURE_EDDSA):
+                sha256.update(part.get_bytes())
 
-    w = pow(s, -1, curve.n)
-    u1 = (data_hash * w) % curve.n
-    u2 = (r * w) % curve.n
+        sha256_digest = sha256.digest()
 
-    # This is a simplified verify, adjust if Mikrotik uses custom EC math
-    x = (pow(curve.g.x, u1, curve.n) * pow(public_key.point.x, u2, curve.n)) % curve.n
-    return x == r
+        # KCDSA signature
+        from mikro import mikro_kcdsa_sign
+        kcdsa_signature = mikro_kcdsa_sign(sha256_digest[:20], kcdsa_private_key)
+        self.replace_part(NpkPartID.SIGNATURE_KCDSA, kcdsa_signature)
+
+        # EDDSA signature
+        from mikro import mikro_eddsa_sign
+        eddsa_signature = mikro_eddsa_sign(sha256_digest, eddsa_private_key)
+        self.replace_part(NpkPartID.SIGNATURE_EDDSA, eddsa_signature)
+
+
+if __name__ == "__main__":
+    # Contoh penggunaan
+    pkg = NovaPackage.from_file("input.npk")
+    print("Part tersedia:", [p.part_id for p in pkg.parts])
+    pkg.save("output_copy.npk")
