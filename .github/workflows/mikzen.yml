@@ -7,13 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       arch:
-        description: 'Architecture (x86, arm64)'
+        description: 'Architecture (x86, arm64, arm)'
         required: true
         default: 'x86'
         type: choice
         options:
           - x86
           - arm64
+          - arm
       channel:
         description: 'Channel (stable, testing)'
         required: true
@@ -103,11 +104,11 @@ jobs:
         include: ${{ fromJSON(needs.Set_Variables.outputs.MATRIX_JSON) }}
         
     env:
-  MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
-  CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
-  TZ: 'Asia/Shanghai'
+      TZ: 'Asia/Shanghai'
       BUILD_TIME: ${{ needs.Set_Variables.outputs.BUILD_TIME }}
       RELEASE: ${{ needs.Set_Variables.outputs.RELEASE }}
+      MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
+      CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
