@@ -1,4 +1,4 @@
-name: Patch Mikrotik-qz RouterOS 7.x
+name: Patch Mikrotik RouterOS 7.x
 on:
   schedule:
     - cron: "0 0 * * *" # At UTC 00:00 on every day
