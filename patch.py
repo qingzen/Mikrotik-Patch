@@ -3,9 +3,11 @@ import struct,os,re
 from npk import NovaPackage,NpkPartID,NpkFileContainer
 
 def replace_chunks(old_chunks,new_chunks,data,name):
+    # Add safeguard against empty chunks
     if not old_chunks or not new_chunks:
-        return data  # Return original data if chunks are empty
-    
+        print(f"Warning: Empty chunks in {name} replacement. Skipping.")
+        return data
+        
     pattern_parts = [re.escape(chunk) + b'(.{0,6})' for chunk in old_chunks[:-1]]
     pattern_parts.append(re.escape(old_chunks[-1])) 
     pattern_bytes = b''.join(pattern_parts)
@@ -18,10 +20,21 @@ def replace_chunks(old_chunks,new_chunks,data,name):
     return re.sub(pattern, replace_match, data)
 
 def replace_key(old,new,data,name=''):
+    # Validate key lengths
+    if len(old) != 32 or len(new) != 32:
+        print(f"Error: Invalid key length in {name}. Old: {len(old)} bytes, New: {len(new)} bytes. Skipping replacement.")
+        return data
+        
     old_chunks = [old[i:i+4] for i in range(0, len(old), 4)]
     new_chunks = [new[i:i+4] for i in range(0, len(new), 4)]
     data =  replace_chunks(old_chunks, new_chunks, data,name)
     key_map = [28,19,25,16,14,3,24,15,22,8,6,17,11,7,9,23,18,13,10,0,26,21,2,5,20,30,31,4,27,29,1,12,]
+    
+    # Add safeguard for key_map
+    if max(key_map) >= len(old) or min(key_map) < 0:
+        print(f"Error: Invalid key_map indices in {name}. Skipping permutation replacement.")
+        return data
+        
     old_chunks = [bytes([old[i]]) for i in key_map]
     new_chunks = [bytes([new[i]]) for i in key_map]
     data =  replace_chunks(old_chunks, new_chunks, data,name)
@@ -30,39 +43,51 @@ def replace_key(old,new,data,name=''):
     if arch in ['arm64','arm']:
         old_chunks = [old[i:i+4] for i in range(0, len(old), 4)]
         new_chunks = [new[i:i+4] for i in range(0, len(new), 4)]
-        old_bytes = old_chunks[4] + old_chunks[5] + old_chunks[2] + old_chunks[0] + old_chunks[1] + old_chunks[6] + old_chunks[7]
-        new_bytes = new_chunks[4] + new_chunks[5] + new_chunks[2] + new_chunks[0] + new_chunks[1] + new_chunks[6] + new_chunks[7]
-        if old_bytes in data:
-            print(f'{name} public key patched {old[:16].hex().upper()}...')
-            data = data.replace(old_bytes,new_bytes)
-            old_codes = [bytes.fromhex('793583E2'),bytes.fromhex('FD3A83E2'),bytes.fromhex('193D83E2')]  #0x1e400000+0xfd000+0x640  
-            new_codes = [bytes.fromhex('FF34A0E3'),bytes.fromhex('753C83E2'),bytes.fromhex('FC3083E2')]  #0xff0075fc= 0xff000000+0x7500+0xfc
-            data =  replace_chunks(old_codes, new_codes, data,name)
+        # Add boundary checks
+        if len(old_chunks) < 8 or len(new_chunks) < 8:
+            print(f"Warning: Not enough chunks for ARM replacement in {name}")
         else:
-            def conver_chunks(data:bytes):
-                ret = [
-                    (data[2] << 16) | (data[1] << 8) | data[0] | ((data[3] << 24) & 0x03000000),
-                    (data[3] >> 2) | (data[4] << 6) | (data[5] << 14) | ((data[6] << 22) & 0x1C00000),
-                    (data[6] >> 3) | (data[7] << 5) | (data[8] << 13) | ((data[9] << 21) & 0x3E00000),
-                    (data[9] >> 5) | (data[10] << 3) | (data[11] << 11) | ((data[12] << 19) & 0x1F80000),
-                    (data[12] >> 6) | (data[13] << 2) | (data[14] << 10) | (data[15] << 18),
-                    data[16] | (data[17] << 8) | (data[18] << 16) | ((data[19] << 24) & 0x01000000),
-                    (data[19] >> 1) | (data[20] << 7) | (data[21] << 15) | ((data[22] << 23) & 0x03800000),
-                    (data[22] >> 3) | (data[23] << 5) | (data[24] << 13) | ((data[25] << 21) & 0x1E00000),
-                    (data[25] >> 4) | (data[26] << 4) | (data[27] << 12) | ((data[28] << 20) & 0x3F00000),
-                    (data[28] >> 6) | (data[29] << 2) | (data[30] << 10) | (data[31] << 18)
-                ]
-                return [struct.pack('<I', x ) for x in ret]
-            old_chunks = conver_chunks(old)
-            new_chunks = conver_chunks(new)
-            old_bytes = b''.join([v for i,v in enumerate(old_chunks) if i != 8])
-            new_bytes = b''.join([v for i,v in enumerate(new_chunks) if i != 8])
+            old_bytes = old_chunks[4] + old_chunks[5] + old_chunks[2] + old_chunks[0] + old_chunks[1] + old_chunks[6] + old_chunks[7]
+            new_bytes = new_chunks[4] + new_chunks[5] + new_chunks[2] + new_chunks[0] + new_chunks[1] + new_chunks[6] + new_chunks[7]
             if old_bytes in data:
                 print(f'{name} public key patched {old[:16].hex().upper()}...')
                 data = data.replace(old_bytes,new_bytes)
-                old_codes = [bytes.fromhex('713783E2'),bytes.fromhex('223A83E2'),bytes.fromhex('8D3F83E2')]  #0x1C40000+0x22000+0x234  
-                new_codes = [bytes.fromhex('973303E3'),bytes.fromhex('DD3883E3'),bytes.fromhex('033483E3')]  #0x03DD3397 = 0x3397|0x00DD0000|0x03000000
+                old_codes = [bytes.fromhex('793583E2'),bytes.fromhex('FD3A83E2'),bytes.fromhex('193D83E2')]  #0x1e400000+0xfd000+0x640  
+                new_codes = [bytes.fromhex('FF34A0E3'),bytes.fromhex('753C83E2'),bytes.fromhex('FC3083E2')]  #0xff0075fc= 0xff000000+0x7500+0xfc
                 data =  replace_chunks(old_codes, new_codes, data,name)
+            else:
+                def conver_chunks(data:bytes):
+                    # Add length validation
+                    if len(data) < 32:
+                        print(f"Warning: Data too short for ARM chunk conversion in {name}")
+                        return []
+                        
+                    ret = [
+                        (data[2] << 16) | (data[1] << 8) | data[0] | ((data[3] << 24) & 0x03000000),
+                        (data[3] >> 2) | (data[4] << 6) | (data[5] << 14) | ((data[6] << 22) & 0x1C00000),
+                        (data[6] >> 3) | (data[7] << 5) | (data[8] << 13) | ((data[9] << 21) & 0x3E00000),
+                        (data[9] >> 5) | (data[10] << 3) | (data[11] << 11) | ((data[12] << 19) & 0x1F80000),
+                        (data[12] >> 6) | (data[13] << 2) | (data[14] << 10) | (data[15] << 18),
+                        data[16] | (data[17] << 8) | (data[18] << 16) | ((data[19] << 24) & 0x01000000),
+                        (data[19] >> 1) | (data[20] << 7) | (data[21] << 15) | ((data[22] << 23) & 0x03800000),
+                        (data[22] >> 3) | (data[23] << 5) | (data[24] << 13) | ((data[25] << 21) & 0x1E00000),
+                        (data[25] >> 4) | (data[26] << 4) | (data[27] << 12) | ((data[28] << 20) & 0x3F00000),
+                        (data[28] >> 6) | (data[29] << 2) | (data[30] << 10) | (data[31] << 18)
+                    ]
+                    return [struct.pack('<I', x ) for x in ret]
+                old_chunks = conver_chunks(old)
+                new_chunks = conver_chunks(new)
+                if not old_chunks or not new_chunks or len(old_chunks) < 9 or len(new_chunks) < 9:
+                    print(f"Warning: ARM chunk conversion failed in {name}")
+                else:
+                    old_bytes = b''.join([v for i,v in enumerate(old_chunks) if i != 8])
+                    new_bytes = b''.join([v for i,v in enumerate(new_chunks) if i != 8])
+                    if old_bytes in data:
+                        print(f'{name} public key patched {old[:16].hex().upper()}...')
+                        data = data.replace(old_bytes,new_bytes)
+                        old_codes = [bytes.fromhex('713783E2'),bytes.fromhex('223A83E2'),bytes.fromhex('8D3F83E2')]  #0x1C40000+0x22000+0x234  
+                        new_codes = [bytes.fromhex('973303E3'),bytes.fromhex('DD3883E3'),bytes.fromhex('033483E3')]  #0x03DD3397 = 0x3397|0x00DD0000|0x03000000
+                        data =  replace_chunks(old_codes, new_codes, data,name)
 
     return data
 
@@ -236,7 +261,7 @@ def patch_netinstall(key_dict: dict,input_file,output_file=None):
                                     new_data = patch_pe(_data,key_dict)
                                 elif _data[:4] == b'\x7FELF':
                                     new_data = patch_elf(_data,key_dict)
-                                else:  # Fixed: was just ':'
+                                else:
                                     raise Exception(f'unknown bootloader format {_data[:4].hex().upper()}')
                             except Exception as e:
                                 print(f'patch {bootloader["arch"]}({sub_resource.id}) bootloader failed {e}')
@@ -284,7 +309,7 @@ def patch_netinstall(key_dict: dict,input_file,output_file=None):
                     new_data = patch_pe(data,key_dict)
                 elif data[:4] == b'\x7FELF':
                     new_data = patch_elf(data,key_dict)
-                else:  # Fixed: was just ':'
+                else:
                     raise Exception(f'unknown bootloader format {data[:4].hex().upper()}')
             except Exception as e:
                 print(f'patch {name.decode()}({id}) bootloader failed {e}')
@@ -414,6 +439,19 @@ if __name__ == '__main__':
     netinstall_parser.add_argument('input',type=str, help='Input file')
     netinstall_parser.add_argument('-O','--output',type=str,help='Output file')
     args = parser.parse_args()
+    
+    # Validate environment variables
+    required_envs = [
+        'MIKRO_LICENSE_PUBLIC_KEY', 'CUSTOM_LICENSE_PUBLIC_KEY',
+        'MIKRO_NPK_SIGN_PUBLIC_KEY', 'CUSTOM_NPK_SIGN_PUBLIC_KEY',
+        'CUSTOM_LICENSE_PRIVATE_KEY', 'CUSTOM_NPK_SIGN_PRIVATE_KEY'
+    ]
+    for env in required_envs:
+        if env not in os.environ:
+            raise EnvironmentError(f"Missing required environment variable: {env}")
+        if len(os.environ[env]) != 64:  # 32 bytes in hex
+            print(f"Warning: Environment variable {env} has invalid length {len(os.environ[env])}, expected 64 hex characters")
+    
     key_dict = {
         bytes.fromhex(os.environ['MIKRO_LICENSE_PUBLIC_KEY']):bytes.fromhex(os.environ['CUSTOM_LICENSE_PUBLIC_KEY']),
         bytes.fromhex(os.environ['MIKRO_NPK_SIGN_PUBLIC_KEY']):bytes.fromhex(os.environ['CUSTOM_NPK_SIGN_PUBLIC_KEY'])
