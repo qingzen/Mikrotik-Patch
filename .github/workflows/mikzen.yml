@@ -102,8 +102,11 @@ jobs:
     strategy:
       matrix: 
         include: ${{ fromJSON(needs.Set_Variables.outputs.MATRIX_JSON) }}
+        
     env:
-      TZ: 'Asia/Shanghai'
+  MIKRO_LICENSE_PUBLIC_KEY: ${{ secrets.MIKRO_LICENSE_PUBLIC_KEY }}
+  CUSTOM_LICENSE_PUBLIC_KEY: ${{ secrets.CUSTOM_LICENSE_PUBLIC_KEY }}
+  TZ: 'Asia/Shanghai'
       BUILD_TIME: ${{ needs.Set_Variables.outputs.BUILD_TIME }}
       RELEASE: ${{ needs.Set_Variables.outputs.RELEASE }}
     steps:
