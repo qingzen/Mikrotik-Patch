@@ -35,7 +35,7 @@ def replace_key(old,new,data,name=''):
             old_codes = [bytes.fromhex('793583E2'),bytes.fromhex('FD3A83E2'),bytes.fromhex('193D83E2')]  #0x1e400000+0xfd000+0x640  
             new_codes = [bytes.fromhex('FF34A0E3'),bytes.fromhex('753C83E2'),bytes.fromhex('FC3083E2')]  #0xff0075fc= 0xff000000+0x7500+0xfc
             data =  replace_chunks(old_codes, new_codes, data,name)
-        else:
+        :
             def conver_chunks(data:bytes):
                 ret = [
                     (data[2] << 16) | (data[1] << 8) | data[0] | ((data[3] << 24) & 0x03000000),
@@ -119,7 +119,7 @@ def patch_block(dev:str,file:str,key_dict):
         _tmp = block_info.strip().split(':')
         if _tmp[0].strip() == '(IND)':
             ind_block_id =  int(_tmp[1])
-        else:
+        :
             print(f'block_info : {block_info}')
             id_range = _tmp[0].strip().replace('(','').replace(')','').split('-')
             block_range = _tmp[1].strip().replace('(','').replace(')','').split('-')
@@ -233,7 +233,7 @@ def patch_netinstall(key_dict: dict,input_file,output_file=None):
                                     new_data = patch_pe(_data,key_dict)
                                 elif _data[:4] == b'\x7FELF':
                                     new_data = patch_elf(_data,key_dict)
-                                else:
+                                :
                                     raise Exception(f'unknown bootloader format {_data[:4].hex().upper()}')
                             except Exception as e:
                                 print(f'patch {bootloader["arch"]}({sub_resource.id}) bootloader failed {e}')
@@ -281,7 +281,7 @@ def patch_netinstall(key_dict: dict,input_file,output_file=None):
                     new_data = patch_pe(data,key_dict)
                 elif data[:4] == b'\x7FELF':
                     new_data = patch_elf(data,key_dict)
-                else:
+                :
                     raise Exception(f'unknown bootloader format {data[:4].hex().upper()}')
             except Exception as e:
                 print(f'patch {name.decode()}({id}) bootloader failed {e}')
@@ -375,8 +375,7 @@ def patch_npk_package(package,key_dict):
         run_shell_command(f"unsquashfs -d {extract_dir} {squashfs_file}")
         patch_squashfs(extract_dir,key_dict)
         logo = os.path.join(extract_dir,"nova/lib/console/logo.txt")
-        run_shell_command(f"sudo sed -i '1d' {logo}") 
-        run_shell_command(f"sudo sed -i '8s#.*#  elseif@live.cn     https://github.com/elseif/MikroTikPatch#' {logo}")
+        run_shell_command(f"sudo sed -i '1d' {logo}")
         print(f"pack {extract_dir} ...")
         run_shell_command(f"rm -f {squashfs_file}")
         run_shell_command(f"mksquashfs {extract_dir} {squashfs_file} -quiet -comp xz -no-xattrs -b 256k")
