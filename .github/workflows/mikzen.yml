@@ -1,4 +1,4 @@
-name: Patch Mikrotik-x RouterOS 7.x
+name: Patch Mikrotik RouterOS 7.x
 on:
   # push:
   #   branches: [ "main" ]
@@ -7,14 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       arch:
-        description: 'Architecture (x86, arm64, arm)'
+        description: 'Architecture (x86, arm64)'
         required: true
         default: 'x86'
         type: choice
         options:
           - x86
           - arm64
-          - arm
       channel:
         description: 'Channel (stable, testing)'
         required: true
