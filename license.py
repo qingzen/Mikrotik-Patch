@@ -1,6 +1,5 @@
 from mikro import *
 
-
 def generate_eddsa_keypair():
     curve = getcurvebyname('Ed25519')
     private_key = ECPrivateKey.eddsa_generate(curve)
