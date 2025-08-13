@@ -77,6 +77,7 @@ class SHA256(object):
     @staticmethod
     def _sum_mod32(*args):
         return sum(args) & 0xffffffff
+
     @classmethod
     def _xor(cls, *args):
         if len(args) == 2:
@@ -87,20 +88,29 @@ class SHA256(object):
     _invert = staticmethod(lambda x: ~x)
 
     # Operations defined by FIPS 180-3 section 3.2 (page 8):
-    _rrot = staticmethod(lambda x, n: ((x & 0xffffffff) >> n) | (x << (32 - n)) & 0xffffffff)
+    _rrot = staticmethod(lambda x, n: ((x & 0xffffffff) >> n)
+                         | (x << (32 - n)) & 0xffffffff)
     _shr = staticmethod(lambda x, n: (x & 0xffffffff) >> n)
 
     # Operations defined by FIPS 180-3 section 4.1.2 (page 10):
-    _ch = classmethod(lambda cls, x, y, z: cls._xor(cls._and(x, y), cls._and(cls._invert(x), z)))
-    _maj = classmethod(lambda cls, x, y, z: cls._xor(cls._and(x, y), cls._and(x, z), cls._and(y, z)))
-    _S0 = classmethod(lambda cls, x: cls._xor(cls._rrot(x, 2), cls._rrot(x, 13), cls._rrot(x, 22)))
-    _S1 = classmethod(lambda cls, x: cls._xor(cls._rrot(x, 6), cls._rrot(x, 11), cls._rrot(x, 25)))
-    _s0 = classmethod(lambda cls, x: cls._xor(cls._rrot(x, 7), cls._rrot(x, 18), cls._shr(x, 3)))
-    _s1 = classmethod(lambda cls, x: cls._xor(cls._rrot(x, 17), cls._rrot(x, 19), cls._shr(x, 10)))
+    _ch = classmethod(lambda cls, x, y, z: cls._xor(
+        cls._and(x, y), cls._and(cls._invert(x), z)))
+    _maj = classmethod(lambda cls, x, y, z: cls._xor(
+        cls._and(x, y), cls._and(x, z), cls._and(y, z)))
+    _S0 = classmethod(lambda cls, x: cls._xor(
+        cls._rrot(x, 2), cls._rrot(x, 13), cls._rrot(x, 22)))
+    _S1 = classmethod(lambda cls, x: cls._xor(
+        cls._rrot(x, 6), cls._rrot(x, 11), cls._rrot(x, 25)))
+    _s0 = classmethod(lambda cls, x: cls._xor(
+        cls._rrot(x, 7), cls._rrot(x, 18), cls._shr(x, 3)))
+    _s1 = classmethod(lambda cls, x: cls._xor(
+        cls._rrot(x, 17), cls._rrot(x, 19), cls._shr(x, 10)))
 
     # Operations defined by FIPS 180-3 section 6.2.2 (page 22):
-    _T1 = classmethod(lambda cls, prev, w, k: cls._sum_mod32(cls._S1(prev.e), cls._ch(prev.e, prev.f, prev.g), prev.h, w, k))
-    _T2 = classmethod(lambda cls, prev: cls._sum_mod32(cls._S0(prev.a), cls._maj(prev.a, prev.b, prev.c)))
+    _T1 = classmethod(lambda cls, prev, w, k: cls._sum_mod32(
+        cls._S1(prev.e), cls._ch(prev.e, prev.f, prev.g), prev.h, w, k))
+    _T2 = classmethod(lambda cls, prev: cls._sum_mod32(
+        cls._S0(prev.a), cls._maj(prev.a, prev.b, prev.c)))
 
     @classmethod
     def _round(cls, number, w, prev=INITIAL_STATE):
@@ -168,11 +178,13 @@ class SHA256(object):
 
         """
 
-        assert len(message) == 16, '_expand_message() got %d words, expected 16' % len(message)
+        assert len(message) == 16, '_expand_message() got %d words, expected 16' % len(
+            message)
 
         w = list(message)
         for i in range(16, 64):
-            w.append(cls._sum_mod32(w[i - 16], cls._s0(w[i - 15]), w[i - 7], cls._s1(w[i - 2])))
+            w.append(cls._sum_mod32(
+                w[i - 16], cls._s0(w[i - 15]), w[i - 7], cls._s1(w[i - 2])))
 
         return w
 
@@ -196,7 +208,8 @@ class SHA256(object):
 
         """
 
-        assert len(message) == 64, '_process_block() got %d bytes, expected 64' % len(message)
+        assert len(message) == 64, '_process_block() got %d bytes, expected 64' % len(
+            message)
         assert not round_offset % 64, 'round_offset should be a multiple of 64'
 
         w = cls._expand_message(struct.unpack('>LLLLLLLLLLLLLLLL', message))
@@ -222,7 +235,8 @@ class SHA256(object):
 
         """
 
-        assert len(message) < 64, 'Input to _pad_message() must be less than 512 bits'
+        assert len(
+            message) < 64, 'Input to _pad_message() must be less than 512 bits'
 
         if len(message) <= 55:
             # Append trailing 1 bit, then padding, then length
@@ -290,7 +304,8 @@ class SHA256(object):
         self.buffer = b''.join((self.buffer, message))
 
         while len(self.buffer) >= 64:
-            self.state = self._process_block(self.buffer[:64], self.state, self.round_offset)
+            self.state = self._process_block(
+                self.buffer[:64], self.state, self.round_offset)
             self.buffer = self.buffer[64:]
             self.round_offset += 64
 
@@ -307,7 +322,8 @@ class SHA256(object):
 
         final_state = self.state
         for block in self._pad_message(self.buffer, self.length):
-            final_state = self._process_block(block, final_state, self.round_offset)
+            final_state = self._process_block(
+                block, final_state, self.round_offset)
 
         return struct.pack('>LLLLLLLL', *final_state)
 
