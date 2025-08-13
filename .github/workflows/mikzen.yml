@@ -123,36 +123,32 @@ jobs:
       run: |
         echo $(uname -a)
         echo Build Time:$BUILD_TIME
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            LATEST_VERSION="${{ github.event.inputs.version }}"
-          else
-            LATEST_VERSION=$(wget -nv -O - https://${{ env.MIKRO_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
-          fi
-        else
-          LATEST_VERSION=$(wget -nv -O - https://${{ env.MIKRO_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
-        fi
-        echo Latest Version:$LATEST_VERSION
-        if [ "${{ github.event_name }}" == "schedule" ]; then
-          _LATEST_VERSION=$(wget -nv -O - https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
-          if [ "$_LATEST_VERSION" == "$LATEST_VERSION" ]; then
-            echo "No new version found"
-            echo "has_new_version=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+        if [[ "${{ github.event_name }}" run: |
+        echo $(uname -a)
+        NEWEST=$(curl -s https://upgrade.mikrotik.com/routeros/NEWESTa7.stable)
+        LATEST_VERSION=$(echo "$NEWEST" | cut -d' ' -f1)
+        BUILD_TIME=$(echo "$NEWEST" | cut -d' ' -f2)
+        echo Latest Version: $LATEST_VERSION
+        echo Build Time: $BUILD_TIME
+        _LATEST_VERSION=$(cat latest7.txt | cut -d ' ' -f1)
+        if [ "$_LATEST_VERSION" == "$LATEST_VERSION" ]; then
+          echo "No new version found"
+          echo "has_new_version=false" >> $GITHUB_OUTPUT
+          exit 0
         fi
         echo "has_new_version=true" >> $GITHUB_OUTPUT
-        wget -nv -O CHANGELOG https://${{ env.MIKRO_UPGRADE_URL }}/routeros/$LATEST_VERSION/CHANGELOG
+        curl -s -o CHANGELOG https://upgrade.mikrotik.com/routeros/$LATEST_VERSION/CHANGELOG
         cat CHANGELOG
-        if [[ "${{ matrix.arch }}" == "arm64" ]]; then
-          echo "ARCH=-arm64" >> $GITHUB_ENV
-        elif [[ "${{ matrix.arch }}" == "arm" ]]; then
-          echo "ARCH=-arm" >> $GITHUB_ENV
-        else
-          echo "ARCH=" >> $GITHUB_ENV
-        fi
+        echo "NEWEST=${NEWEST}" >> $GITHUB_ENV
         echo "LATEST_VERSION=${LATEST_VERSION}" >> $GITHUB_ENV
-        sudo apt-get update > /dev/null
+        if [ "${{ matrix.arch }}" == "x86" ]; then
+          ARCH=''
+        elif [ "${{ matrix.arch }}" == "arm" ]; then
+          ARCH='-arm'
+        elif [ "${{ matrix.arch }}" == "arm64" ]; then
+          ARCH='-arm64'
+        fi
+        echo "ARCH=$ARCH" >> $GITHUB_ENV
         
     - name: Get loader patch files
       if: steps.get_latest.outputs.has_new_version == 'true'
