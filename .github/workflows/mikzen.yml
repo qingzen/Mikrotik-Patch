@@ -1,7 +1,5 @@
 name: Patch Mikrotik-qz RouterOS 7.x
 on:
-  # push:
-  #   branches: [ "main" ]
   schedule:
     - cron: "0 0 * * *" # At UTC 00:00 on every day
   workflow_dispatch:
@@ -123,16 +121,21 @@ jobs:
       run: |
         echo $(uname -a)
         echo Build Time:$BUILD_TIME
+        
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           if [ -n "${{ github.event.inputs.version }}" ]; then
             LATEST_VERSION="${{ github.event.inputs.version }}"
           else
-            LATEST_VERSION=$(wget -nv -O - https://${{ env.MIKRO_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
+            # Always pull from official upgrade.mikrotik.com stable channel
+            LATEST_VERSION=$(wget -nv -O - https://upgrade.mikrotik.com/routeros/NEWESTa7.stable | cut -d ' ' -f1)
           fi
         else
-          LATEST_VERSION=$(wget -nv -O - https://${{ env.MIKRO_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
+          # Always pull from official upgrade.mikrotik.com stable channel
+          LATEST_VERSION=$(wget -nv -O - https://upgrade.mikrotik.com/routeros/NEWESTa7.stable | cut -d ' ' -f1)
         fi
+        
         echo Latest Version:$LATEST_VERSION
+        
         if [ "${{ github.event_name }}" == "schedule" ]; then
           _LATEST_VERSION=$(wget -nv -O - https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
           if [ "$_LATEST_VERSION" == "$LATEST_VERSION" ]; then
@@ -141,16 +144,22 @@ jobs:
             exit 0
           fi
         fi
+        
         echo "has_new_version=true" >> $GITHUB_OUTPUT
-        wget -nv -O CHANGELOG https://${{ env.MIKRO_UPGRADE_URL }}/routeros/$LATEST_VERSION/CHANGELOG
+        
+        # Always get changelog from official upgrade.mikrotik.com
+        wget -nv -O CHANGELOG https://upgrade.mikrotik.com/routeros/$LATEST_VERSION/CHANGELOG
         cat CHANGELOG
+        
         if [[ "${{ matrix.arch }}" == "arm64" ]]; then
           echo "ARCH=-arm64" >> $GITHUB_ENV
         else
           echo "ARCH=" >> $GITHUB_ENV
         fi
+        
         echo "LATEST_VERSION=${LATEST_VERSION}" >> $GITHUB_ENV
         sudo apt-get update > /dev/null
+
 
         
     - name: Get loader patch files
