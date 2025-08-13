@@ -24,7 +24,7 @@ def patch_bzimage(data: bytes, key_dict: dict):
     assert z_output_len == len(
         vmlinux), 'vmlinux size is not equal to expected'
     CPIO_HEADER_MAGIC = b'07070100'
-    CPIO_FOOTER_MAGIC = b'TRAILER!!!\x00\x00\x00\x00'  # 545241494C455221212100000000
+    CPIO_FOOTER_MAGIC = b'TRAILER!!!\x00\x00\x00\x00'  # 545241494C45522121210000000
     cpio_offset1 = vmlinux.index(CPIO_HEADER_MAGIC)
     initramfs = vmlinux[cpio_offset1:]
     cpio_offset2 = initramfs.index(CPIO_FOOTER_MAGIC)+len(CPIO_FOOTER_MAGIC)
