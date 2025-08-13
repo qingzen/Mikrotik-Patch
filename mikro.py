@@ -70,7 +70,7 @@ def mikro_systemid_encode(id: int) -> str:
 
 
 def to32bits(v):
-    return (v + (1 << 32)) % (1 << 32)
+    return (v + (1 << 32)) % (1 << 32) 
 
 
 def rotl(n, d):
