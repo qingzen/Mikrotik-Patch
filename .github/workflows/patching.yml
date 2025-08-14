@@ -1,4 +1,4 @@
-name: Patch v7
+name: RouterOS Patch v7
 
 on:
   workflow_dispatch:
